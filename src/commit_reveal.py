@@ -148,10 +148,12 @@ def _append_entropy_csv(trade_date: date, rec: Dict[str, Any]) -> None:
 def perform_commit(trade_date: date, enforce_window: bool = True) -> bool:
     # print(f"perform_commit called for {trade_date} enforce_window={enforce_window}")
     if not datafeed.is_trading_day(trade_date):
+        print(f"{trade_date} is not a trading day")
         return False
 
     now_wall = _now_et_wall()
     if enforce_window and not _within_window(now_wall, trade_date, config.SCHEDULE.commit_start, config.SCHEDULE.commit_end):
+        print(f"current time {now_wall} is outside commit window for {trade_date}")
         return False
 
     secret = os.getenv(config.SALT_ENV_VAR)
@@ -174,14 +176,19 @@ def perform_commit(trade_date: date, enforce_window: bool = True) -> bool:
 
     changed = False
     for sym in config.SYMBOLS:
-        if _symbol_lookup(doc["symbols"], sym) and _symbol_lookup(doc["symbols"], sym).get("commit"):
+        existing_rec = _symbol_lookup(doc["symbols"], sym)
+        if existing_rec and existing_rec.get("commit"):
+            print(f"commit already exists for {sym} on {trade_date}, skipping")
             continue
         # determine commit bar price near 15:55 ET
         et = pytz.timezone("America/New_York")
         target = et.localize(datetime.combine(trade_date, time(15, 55)))
+        print(f"fetching minute bar data for {sym} on {trade_date} near {target}")
         p_commit, bar_ts_iso = datafeed.get_minute_bar_near_et(sym, trade_date, target, tolerance_minutes=2)
         if p_commit is None or bar_ts_iso is None:
+            print(f"could not fetch minute bar data for {sym} on {trade_date} (p_commit={p_commit}, bar_ts_iso={bar_ts_iso})")
             continue
+        print(f"successfully fetched minute bar for {sym}: price={p_commit}, timestamp={bar_ts_iso}")
         ctx = _context(trade_date, sym)
         P = predictor.predict_next_move(sym, trade_date)
         s = _salt(secret_bytes, ctx)
@@ -206,9 +213,13 @@ def perform_commit(trade_date: date, enforce_window: bool = True) -> bool:
             "committed_at_utc": commit_ts_utc,
         })
         changed = True
+        print(f"created commit for {sym} on {trade_date}")
 
     if changed:
         _save_daily(path, doc)
+        print(f"saved daily file for {trade_date}")
+    else:
+        print(f"no changes made for {trade_date} - all symbols either already committed or failed to fetch data")
     return changed
 
 
