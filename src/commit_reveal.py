@@ -48,6 +48,162 @@ def _salt(secret_key: bytes, context: str) -> str:
     return hmac.new(secret_key, context.encode("utf-8"), hashlib.sha256).hexdigest()[:32]
 
 
+COMMIT_PRICE_DECIMALS = 4
+
+
+def _round_commit_price(value: float) -> float:
+    return round(float(value), COMMIT_PRICE_DECIMALS)
+
+
+def _hash_commit_payload(payload: Dict[str, Any]) -> str:
+    return hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
+
+
+def _recover_commit_price(
+    base_payload: Dict[str, Any],
+    salt: str,
+    commit_hex: str,
+    approx_price: Optional[float] = None,
+) -> Optional[float]:
+    checked: set[float] = set()
+
+    def _try_candidate(candidate: float) -> Optional[float]:
+        rounded = _round_commit_price(candidate)
+        if rounded <= 0:
+            return None
+        if rounded in checked:
+            return None
+        checked.add(rounded)
+        payload = {**base_payload, "p_commit": rounded, "salt": salt}
+        digest = _hash_commit_payload(payload)
+        if digest == commit_hex:
+            return rounded
+        return None
+
+    if approx_price is not None:
+        approx = _round_commit_price(approx_price)
+        result = _try_candidate(approx)
+        if result is not None:
+            return result
+        step = 10 ** -COMMIT_PRICE_DECIMALS
+        max_offset = 2.0
+        steps = int(max_offset / step)
+        for i in range(1, steps + 1):
+            delta = i * step
+            for candidate in (approx + delta, approx - delta):
+                result = _try_candidate(candidate)
+                if result is not None:
+                    return result
+
+    coarse_step = 0.01
+    max_price = 2000.0
+    iterations = int(max_price / coarse_step) + 1
+    for i in range(iterations):
+        candidate = i * coarse_step
+        result = _try_candidate(candidate)
+        if result is not None:
+            return result
+
+    fine_step = 10 ** -COMMIT_PRICE_DECIMALS
+    max_price_fine = 1000.0
+    iterations_fine = int(max_price_fine / fine_step) + 1
+    for i in range(iterations_fine):
+        candidate = i * fine_step
+        result = _try_candidate(candidate)
+        if result is not None:
+            return result
+
+    return None
+
+
+def _ensure_commit_inputs(
+    rec: Dict[str, Any],
+    sym: str,
+    trade_date: date,
+    secret_bytes: bytes,
+) -> Dict[str, Any]:
+    commit_hex = rec.get("commit")
+    if not commit_hex:
+        raise RuntimeError(f"Missing commit for {sym} on {trade_date}")
+
+    ctx = _context(trade_date, sym)
+    existing_inputs = rec.get("commit_inputs") or {}
+    stored_commit_ts = existing_inputs.get("timestamp_commit_utc") or rec.get("committed_at_utc", "")
+    bar_ts_iso = existing_inputs.get("commit_bar_ts_et") or rec.get("commit_bar_ts_et")
+    if not bar_ts_iso:
+        et = pytz.timezone("America/New_York")
+        bar_ts_iso = et.localize(datetime.combine(trade_date, time(15, 55))).isoformat()
+
+    prediction_candidates: List[int] = []
+    if "prediction" in existing_inputs:
+        try:
+            prediction_candidates.append(int(existing_inputs["prediction"]))
+        except Exception:
+            pass
+    try:
+        guess_pred = int(predictor.predict_next_move(sym, trade_date))
+    except Exception:
+        guess_pred = 1
+    for candidate in (guess_pred, 0, 1):
+        if candidate not in prediction_candidates:
+            prediction_candidates.append(candidate)
+    if not prediction_candidates:
+        prediction_candidates = [0, 1]
+
+    approx_price: Optional[float] = None
+    if "p_commit" in existing_inputs:
+        try:
+            approx_price = float(existing_inputs["p_commit"])
+        except Exception:
+            approx_price = None
+    if approx_price is None:
+        p_commit_guess, _ = datafeed.get_price_at_bar_et(
+            sym,
+            trade_date,
+            bar_ts_iso,
+            tolerance_minutes=config.COMMIT_BAR_TOLERANCE_MINUTES,
+        )
+        if p_commit_guess is not None:
+            approx_price = p_commit_guess
+
+    salt = _salt(secret_bytes, ctx)
+    stored_price_val: Optional[float] = None
+    if "p_commit" in existing_inputs:
+        try:
+            stored_price_val = float(existing_inputs["p_commit"])
+        except Exception:
+            stored_price_val = None
+
+    for pred in prediction_candidates:
+        base_payload = {
+            "symbol": sym,
+            "prediction": int(pred),
+            "commit_bar_ts_et": bar_ts_iso,
+            "timestamp_commit_utc": stored_commit_ts,
+            "context": ctx,
+        }
+
+        if stored_price_val is not None:
+            rounded = _round_commit_price(stored_price_val)
+            payload = {**base_payload, "p_commit": rounded, "salt": salt}
+            if _hash_commit_payload(payload) == commit_hex:
+                sanitized = {**base_payload, "p_commit": rounded}
+                rec["commit_inputs"] = sanitized
+                if not existing_inputs:
+                    print(f"backfilled commit inputs for {sym} on {trade_date}")
+                return sanitized
+
+        recovered = _recover_commit_price(base_payload, salt, commit_hex, approx_price)
+        if recovered is not None:
+            sanitized = {**base_payload, "p_commit": recovered}
+            rec["commit_inputs"] = sanitized
+            if not existing_inputs:
+                print(f"recovered legacy commit price for {sym} on {trade_date}: {recovered}")
+            return sanitized
+
+    raise RuntimeError(f"Unable to reconcile commit payload for {sym} on {trade_date}")
+
+
 @dataclass
 class SymbolRecord:
     symbol: str
@@ -193,16 +349,17 @@ def perform_commit(trade_date: date, enforce_window: bool = True) -> bool:
         P = predictor.predict_next_move(sym, trade_date)
         s = _salt(secret_bytes, ctx)
         commit_ts_utc = datetime.now(timezone.utc).isoformat()
-        payload = {
+        p_commit_val = _round_commit_price(p_commit)
+        commit_inputs = {
             "symbol": sym,
-            "prediction": P,
-            "p_commit": round(float(p_commit), 4),
+            "prediction": int(P),
+            "p_commit": p_commit_val,
             "commit_bar_ts_et": bar_ts_iso,
             "timestamp_commit_utc": commit_ts_utc,
-            "salt": s,
             "context": ctx,
         }
-        C = hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
+        payload = {**commit_inputs, "salt": s}
+        C = _hash_commit_payload(payload)
         rec = _symbol_lookup(doc["symbols"], sym)
         if not rec:
             rec = {"symbol": sym}
@@ -211,6 +368,7 @@ def perform_commit(trade_date: date, enforce_window: bool = True) -> bool:
             "commit": C,
             "commit_bar_ts_et": bar_ts_iso,
             "committed_at_utc": commit_ts_utc,
+            "commit_inputs": commit_inputs,
         })
         changed = True
         print(f"created commit for {sym} on {trade_date}")
@@ -252,33 +410,23 @@ def perform_reveal(trade_date: date, enforce_window: bool = True) -> bool:
         prev_close, today_close = datafeed.get_prev_and_today_close(sym, trade_date)
         if prev_close is None or today_close is None:
             continue
-        ctx = _context(trade_date, sym)
-        P = predictor.predict_next_move(sym, trade_date)
+        commit_inputs = _ensure_commit_inputs(rec, sym, trade_date, secret_bytes)
+        ctx = commit_inputs["context"]
+        P = int(commit_inputs["prediction"])
+        bar_ts_iso = commit_inputs["commit_bar_ts_et"]
+        stored_commit_ts = commit_inputs["timestamp_commit_utc"]
+        p_commit_val = _round_commit_price(commit_inputs["p_commit"])
+        commit_inputs["p_commit"] = p_commit_val
+        rec["commit_inputs"] = commit_inputs
         s = _salt(secret_bytes, ctx)
-        # reconstruct p_commit using stored commit bar ts
-        bar_ts_iso = rec.get("commit_bar_ts_et")
-        if not bar_ts_iso:
-            et = pytz.timezone("America/New_York")
-            bar_ts_iso = et.localize(datetime.combine(trade_date, time(15, 55))).isoformat()
-        p_commit, bar_ts_ack = datafeed.get_price_at_bar_et(sym, trade_date, bar_ts_iso, tolerance_minutes=config.COMMIT_BAR_TOLERANCE_MINUTES)
-        if p_commit is None:
-            continue
-        payload = {
-            "symbol": sym,
-            "prediction": P,
-            "p_commit": round(float(p_commit), 4),
-            "commit_bar_ts_et": bar_ts_iso,
-            "timestamp_commit_utc": rec.get("committed_at_utc", ""),
-            "salt": s,
-            "context": ctx,
-        }
-        C_expected = hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
+        payload = {**commit_inputs, "salt": s}
+        C_expected = _hash_commit_payload(payload)
         if C_expected != rec["commit"]:
             raise RuntimeError(f"Commit mismatch for {sym} on {trade_date}")
         O = 1 if today_close > prev_close else 0
         bits = f"{P}{O}"
         tie = today_close == prev_close
-        delta = float(today_close) - float(p_commit)
+        delta = float(today_close) - float(p_commit_val)
         sign_bit = 1 if delta > 0 else 0
         mag_q = min(int(abs(delta) * 100), 255)
         symbol_bytes_hex = bytes([int(P), int(O), int(sign_bit), int(mag_q)]).hex()
@@ -292,7 +440,7 @@ def perform_reveal(trade_date: date, enforce_window: bool = True) -> bool:
             "provider": config.PROVIDER,
             "tie": tie,
             "context": ctx,
-            "p_commit": round(float(p_commit), 4),
+            "p_commit": p_commit_val,
             "p_reveal": float(today_close),
             "commit_bar_ts_et": bar_ts_iso,
             "delta": delta,
