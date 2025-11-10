@@ -14,6 +14,7 @@ class Schedule:
 SYMBOLS = ["SPY", "AAPL"]
 EXCHANGE = "NYSE"
 ET_TZ_NAME = "America/New_York"
+# print(f"configured base symbols: {SYMBOLS} on {EXCHANGE}")
 
 SYMBOL_EXCHANGE = {
     "SPY": "NYSE",
@@ -26,6 +27,7 @@ SCHEDULE = Schedule(
     reveal_start=time(16, 4, 0),
     reveal_end=time(16, 12, 0),
 )
+# print(f"schedule initialized: {SCHEDULE}")
 
 # Outputs
 OUTPUTS_DIR = "outputs"
@@ -42,6 +44,7 @@ PROVIDER = "yfinance"
 GITHUB_SHA_ENV = "GITHUB_SHA"
 
 def ensure_output_dirs() -> None:
+    # print(f"ensuring output directories exist: {OUTPUTS_DIR}, {DAILY_DIR}")
     os.makedirs(DAILY_DIR, exist_ok=True)
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
 

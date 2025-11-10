@@ -11,6 +11,7 @@ def predict_next_move(symbol: str, trade_date: dt.date) -> int:
     strategy: sign of last daily return (prev - prevprev). if data insufficient,
     default to 1 (predict up) to remain deterministic.
     """
+    # print(f"predict_next_move called for symbol={symbol} trade_date={trade_date}")
     # need previous two trading days relative to trade_date
     try:
         prev = datafeed.previous_trading_day(trade_date)

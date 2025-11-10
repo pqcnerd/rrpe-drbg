@@ -13,20 +13,24 @@ import pytz
 from . import config, datafeed, predictor
 
 def _canonical_json(obj: Dict[str, Any]) -> str:
+    # print(f"canonicalizing JSON for keys: {sorted(obj.keys())}")
     return json.dumps(obj, sort_keys=True, separators=(",", ":"))
 
 
 def _et_datetime(d: date, t: time) -> datetime:
+    # print(f"converting date {d} and time {t} to ET datetime")
     et = pytz.timezone("America/New_York")
     return et.localize(datetime.combine(d, t)).replace(tzinfo=None)
 
 
 def _now_et_wall() -> datetime:
+    # print("capturing current ET wall-clock timestamp")
     et = pytz.timezone("America/New_York")
     return datetime.now(et).replace(tzinfo=None, microsecond=0)
 
 
 def _within_window(now_wall: datetime, d: date, start_t: time, end_t: time) -> bool:
+    # print(f"checking trading window for {d}: {start_t} -> {end_t}")
     start_dt = _et_datetime(d, start_t)
     end_dt = _et_datetime(d, end_t)
     current = _et_datetime(now_wall.date(), now_wall.time().replace(microsecond=0))
@@ -34,17 +38,14 @@ def _within_window(now_wall: datetime, d: date, start_t: time, end_t: time) -> b
 
 
 def _context(trade_date: date, symbol: str) -> str:
+    # print(f"building context string for {symbol} on {trade_date}")
     exch = getattr(config, "SYMBOL_EXCHANGE", {}).get(symbol, config.EXCHANGE)
     return f"{trade_date.isoformat()}|{symbol}|{exch}|close"
 
 
 def _salt(secret_key: bytes, context: str) -> str:
+    # print(f"creating salt for context: {context}")
     return hmac.new(secret_key, context.encode("utf-8"), hashlib.sha256).hexdigest()[:32]
-
-
-def _commit_hash(pred_bit: int, salt_hex: str, context: str) -> str:
-    payload = f"{pred_bit}|{salt_hex}|{context}".encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
 
 
 @dataclass
@@ -65,6 +66,7 @@ class SymbolRecord:
 
 
 def _load_daily(path: str) -> Dict[str, Any]:
+    # print(f"loading daily JSON from {path}")
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -72,11 +74,13 @@ def _load_daily(path: str) -> Dict[str, Any]:
 
 
 def _save_daily(path: str, obj: Dict[str, Any]) -> None:
+    # print(f"persisting daily JSON to {path}")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, indent=2, sort_keys=False)
 
 
 def _symbol_lookup(symbols: List[Dict[str, Any]], symbol: str) -> Optional[Dict[str, Any]]:
+    # print(f"looking up symbol entry for {symbol}")
     for rec in symbols:
         if rec.get("symbol") == symbol:
             return rec
@@ -84,6 +88,7 @@ def _symbol_lookup(symbols: List[Dict[str, Any]], symbol: str) -> Optional[Dict[
 
 
 def _ensure_header_csv() -> None:
+    # print(f"ensuring entropy CSV header exists at {config.ENTROPY_LOG}")
     expected = [
         "date","symbol","prediction","outcome","symbol_bits","commit","context","salt",
         "close_prev","close_today","provider","tie",
@@ -113,6 +118,7 @@ def _ensure_header_csv() -> None:
 
 
 def _append_entropy_csv(trade_date: date, rec: Dict[str, Any]) -> None:
+    # print(f"appending entropy CSV row for {rec.get('symbol')} on {trade_date}")
     _ensure_header_csv()
     with open(config.ENTROPY_LOG, "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -140,6 +146,7 @@ def _append_entropy_csv(trade_date: date, rec: Dict[str, Any]) -> None:
 
 
 def perform_commit(trade_date: date, enforce_window: bool = True) -> bool:
+    # print(f"perform_commit called for {trade_date} enforce_window={enforce_window}")
     if not datafeed.is_trading_day(trade_date):
         return False
 
@@ -206,6 +213,7 @@ def perform_commit(trade_date: date, enforce_window: bool = True) -> bool:
 
 
 def perform_reveal(trade_date: date, enforce_window: bool = True) -> bool:
+    # print(f"perform_reveal called for {trade_date} enforce_window={enforce_window}")
     if not datafeed.is_trading_day(trade_date):
         return False
 

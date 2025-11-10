@@ -1,9 +1,9 @@
-# rrpe-drbg (polished but needs work so TODO & we need to keep testing locally)
+# rrpe-drbg (removed all references to my legacy implementation and only kept the "hybrid" mode as my current)
 a cryptographic random number gen reseeded by own predictive error on chaotic rw processes
 
 experimental cryptographic randomness beacon that continuously *re-entropizes itself* using the outcome of its own failed predictions.  
 everyday (or moreso every close?), the system makes a publicly verifiable prediction about an inherently unpredictable real-world signal (ex. whether a stock index will rise or fall at the next close) and commits that prediction before the outcome is known.  
-once reality is observed, the success or failure of the prediction forms a **2-bit symbol** (`prediction`, `outcome`), which is appended to an ever growing sequence of **prediction error pairs**.  
+once reality is observed, a **4-byte symbol** is formed from the prediction, outcome, and price movement: `[prediction, outcome, sign_bit, mag_q]`, which is appended to an ever growing sequence of **prediction error pairs**.  
 this sequence is then passed through a **cryptographic extractor** (SHA-256) to yield a uniform random output. 
 
 > in effect, the generators own inability to predict a chaotic world becomes its entropy source.
@@ -45,22 +45,27 @@ after the market closes (16:04–16:12 ET about):
 - the prediction, salt, and `p_commit` are revealed.
 - the commitment is verified by reconstructing the canonical JSON and checking:  
   `SHA256(canonical_json) == C_t`
-- a 2-bit symbol is formed: `S_t = (P_t, O_t) ∈ {00,01,10,11}`
-- in hybrid mode, a 4-byte symbol is also created: `[P_t, O_t, sign_bit, mag_q]`
+- a 4-byte symbol is created: `[P_t, O_t, sign_bit, mag_q]` where:
+  - `P_t` = prediction (0 or 1)
+  - `O_t` = outcome (0 or 1, based on whether close > prev_close)
+  - `sign_bit` = 1 if `p_reveal - p_commit > 0` else 0
+  - `mag_q` = min(int(abs(p_reveal - p_commit) * 100), 255)
 
 ### entropy accumulation
-over `N` observations, concatenate symbols:  
+over `N` observations, concatenate 4-byte symbols:  
 
-`X = S_1 || S_2 || ... || S_N`
+`X = bytes_1 || bytes_2 || ... || bytes_N`
+
+where each `bytes_i` is the 4-byte symbol `[P_i, O_i, sign_bit_i, mag_q_i]`.
 
 this represents the **empirical trace of predictive failure.**
 
 ### extraction
-to remove bias and temporal correlation, apply a cryptographic extractor (seeded SHA-256 or Toeplitz hash):  
+to remove bias and temporal correlation, apply a cryptographic extractor (seeded SHA-256):  
 
-`R_t = Truncate_m( SHA256(seed_t | X) )`
+`R_t = SHA256(seed || X)[:m]`
 
-where `seed_t` is a public seed (e.g., from the drand or NIST beacon).  
+where `seed` is a public seed from the latest drand beacon (concatenated as bytes), `X` is the concatenated symbol bytes, and `[:m]` takes the first `m` hex characters (where `m = out_bits // 4`).  
 The result `R_t` is the **reflexive random output** — verifiable, auditable, and grounded in real-world chaos.
 
 ## key idea — *reflexive randomness*
@@ -91,7 +96,7 @@ python -m src.main commit --date 2025-11-09
 # reveal predictions after market close
 python -m src.main reveal --date 2025-11-09
 
-# extract randomness from accumulated symbols
+# extract randomness from accumulated symbols (uses latest drand seed and last N symbols from entropy_log.csv)
 python -m src.main extract --date 2025-11-09 --window 256 --bits 256
 ```
 
@@ -103,7 +108,7 @@ if you need to use the functions directly:
 from datetime import date
 from src.predictor import predict_next_move
 from src.commit_reveal import perform_commit, perform_reveal
-from src.extractor import extract_randomness
+from src.extractor import run_for_date
 
 # prediction
 trade_date = date(2025, 11, 9)
@@ -115,11 +120,9 @@ changed = perform_commit(trade_date, enforce_window=False)
 # reveal (after market close)
 changed = perform_reveal(trade_date, enforce_window=False)
 
-# extraction
-symbols = "001110100111..."  # concatenated symbol_bits from entropy_log.csv
-seed = "drand_seed_value"  # from drand API
-output = extract_randomness(symbols, seed, out_bits=256)
-print(output[:64])  # 256-bit random output (64 hex chars)
+# extraction (uses latest drand seed and collects last N symbols from entropy_log.csv)
+changed = run_for_date(trade_date, window=256, out_bits=256)
+# output is written to outputs/daily/YYYY-MM-DD.json in the "extractor" field
 ```
 
 ## entropy evaluation
@@ -136,9 +139,9 @@ these quantify genuine unpredictability in the prediction error stream before ex
 
 ---
 
-## hybrid reflexive randomness (direction + magnitude)
+## implementation details (4-byte symbols)
 
-this extends the 2 bit design by incorporating the pre-close price snapshot and the close-to-commit delta, producing a richer entropy signal (typically 6–12 bits per round vs. 2 bits).
+the implementation incorporates the pre-close price snapshot and the close-to-commit delta, producing a richer entropy signal (typically 6–12 bits per round).
 
 ### concept
 
@@ -149,7 +152,7 @@ at each round, the system commits to a snapshot **before** the outcome is known,
 - `prediction` ∈ {0, 1} meaning "predict up/down"
 
 after reveal we derive:
-- `outcome = 1 if p_reveal > prev_close else 0` (direction of daily close change, for 2-bit symbol)
+- `outcome = 1 if p_reveal > prev_close else 0` (direction of daily close change)
 - `delta = p_reveal - p_commit` (price change from commit time to close)
 - `sign_bit = 1 if delta > 0 else 0` (direction of delta)
 - `mag_q = min(int(abs(delta) * 100), 255)` (quantized magnitude in cents, capped at 255)
@@ -181,7 +184,7 @@ commit_hash = SHA256(json.dumps(payload, sort_keys=True, separators=(",", ":")).
 1. re-fetch the minute bar using `commit_bar_ts_et` to reconstruct `p_commit`
 2. fetch official close `p_reveal` from daily data
 3. rebuild the payload deterministically and verify: `SHA256(canonical_json) == commit_hash`
-4. compute hybrid metrics:
+4. compute symbol components:
    - `outcome = 1 if p_reveal > prev_close else 0` (based on daily close comparison)
    - `delta = p_reveal - p_commit`
    - `sign_bit = 1 if delta > 0 else 0` (direction of commit-to-close delta)
@@ -197,24 +200,23 @@ commit_hash = SHA256(json.dumps(payload, sort_keys=True, separators=(",", ":")).
 | `sign_bit` | direction of delta | chaotic movement |
 | `mag_q` | size of change (0–255) | market volatility |
 
-together these four fields typically yield **6–12 bits of entropy per round**, an order of magnitude more than the original 2-bit design.
+together these four fields typically yield **6–12 bits of entropy per round**, an order of magnitude more than a simple 2-bit prediction/outcome pair.
 
 ### artifacts
 
 per symbol in `outputs/daily/YYYY-MM-DD.json`:
-- **new fields**: `p_commit`, `p_reveal`, `commit_bar_ts_et`, `delta`, `sign_bit`, `mag_q`, `symbol_bytes_hex`
-- **legacy fields**: `symbol_bits = f"{prediction}{outcome}"` (backward compatible)
+- **fields**: `p_commit`, `p_reveal`, `commit_bar_ts_et`, `delta`, `sign_bit`, `mag_q`, `symbol_bytes_hex`
 
-CSV `outputs/entropy_log.csv` includes all hybrid columns.
+CSV `outputs/entropy_log.csv` includes all columns.
 
 ### extraction
 
-prefer byte mode when available:
+extraction uses 4-byte symbols:
 ```
 concatenated_bytes = bytes.fromhex(symbol_bytes_hex_1 + symbol_bytes_hex_2 + ...)
-output = SHA256(seed || concatenated_bytes)[:bits/4]
+seed_bytes = bytes.fromhex(seed_hex)  # or seed.encode('utf-8') if not hex
+output = SHA256(seed_bytes + concatenated_bytes).hexdigest()[:bits//4]  # first (bits//4) hex chars = bits bits of output
 ```
-fallback to legacy 2 bit path if `symbol_bytes_hex` is unavailable (backward compatible).
 
 ---
 
@@ -240,16 +242,7 @@ artifacts:
 
 ### verification
 
-#### legacy 2-bit mode (Historical)
-> **Note:** the current implementation uses hybrid mode. The legacy 2-bit mode is preserved for backward compatibility in the entropy log.
-
-For historical records using the old format:
-1. recalculate `salt = HMAC_SHA256(RRPE_SALT_KEY, context)[:32]`.
-2. recalculate `SHA256(P | salt | context)` and compare to committed hash (if using old format).
-3. confirm outcome from the public close; compute `symbol_bits = P || O`.
-4. reproduce extractor output from `entropy_log.csv` and drand seed.
-
-#### hybrid mode (Current)
+#### implementation
 1. **verify commit hash**:
    - reconstruct the canonical JSON payload using:
      - `symbol`, `prediction` (from reveal)
@@ -271,8 +264,9 @@ For historical records using the old format:
 
 3. **Reproduce extraction**:
    - collect last N rows from `entropy_log.csv`
-   - concatenate `symbol_bytes_hex` values (or fallback to `symbol_bits`)
-   - fetch drand seed for the date
-   - compute `SHA256(seed || concatenated_bytes)[:bits/4]` and compare to artifact
+   - concatenate `symbol_bytes_hex` values as bytes
+   - fetch latest drand seed (not date-specific)
+   - concatenate seed bytes with symbol bytes: `seed_bytes + concatenated_bytes`
+   - compute `SHA256(seed_bytes + concatenated_bytes).hexdigest()[:bits//4]` and compare to artifact (first bits//4 hex characters = bits bits of output)
 
 all data is public and verifiable; the only secret is `RRPE_SALT_KEY` used for deterministic salt generation.

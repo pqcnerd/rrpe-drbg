@@ -13,6 +13,7 @@ from . import config
 
 
 def _read_entropy_log_rows() -> Tuple[List[str], List[dict]]:
+    # print(f"attempting to read entropy log: {config.ENTROPY_LOG}")
     if not os.path.exists(config.ENTROPY_LOG):
         return [], []
     with open(config.ENTROPY_LOG, "r", encoding="utf-8") as f:
@@ -22,14 +23,8 @@ def _read_entropy_log_rows() -> Tuple[List[str], List[dict]]:
     return list(fieldnames), rows
 
 
-def _collect_bits(window: int) -> str:
-    _, rows = _read_entropy_log_rows()
-    bits_list: List[str] = [r.get("symbol_bits", "") for r in rows if r.get("symbol_bits")]  # type: ignore
-    bits_list = bits_list[-window:]
-    return "".join(bits_list)
-
-
 def _collect_bytes(window: int) -> Optional[bytes]:
+    # print(f"collecting last {window} symbol byte entries from entropy log")
     fieldnames, rows = _read_entropy_log_rows()
     if "symbol_bytes_hex" not in fieldnames:
         return None
@@ -45,6 +40,7 @@ def _collect_bytes(window: int) -> Optional[bytes]:
 
 def fetch_drand_seed() -> Tuple[str, str]:
     url = os.getenv("DRAND_URL", config.DRAND_URL)
+    # print(f"fetching drand seed from URL: {url}")
     try:
         resp = requests.get(url, timeout=10)
         resp.raise_for_status()
@@ -57,6 +53,7 @@ def fetch_drand_seed() -> Tuple[str, str]:
 
 
 def _seed_bytes(seed_value: str) -> bytes:
+    # print(f"converting seed value to bytes; length={len(seed_value)}")
     try:
         if all(c in "0123456789abcdef" for c in seed_value.lower()) and len(seed_value) % 2 == 0:
             return bytes.fromhex(seed_value)
@@ -66,14 +63,8 @@ def _seed_bytes(seed_value: str) -> bytes:
 
 
 def extract_randomness_from_bytes(symbol_bytes: bytes, seed_value: str, out_bits: int) -> str:
+    # print(f"extracting randomness with out_bits={out_bits}")
     payload = _seed_bytes(seed_value) + symbol_bytes
-    digest = hashlib.sha256(payload).hexdigest()
-    hex_len = out_bits // 4
-    return digest[:hex_len]
-
-
-def extract_randomness(bits_concat: str, seed_value: str, out_bits: int) -> str:
-    payload = _seed_bytes(seed_value) + bits_concat.encode("utf-8")
     digest = hashlib.sha256(payload).hexdigest()
     hex_len = out_bits // 4
     return digest[:hex_len]
@@ -81,6 +72,7 @@ def extract_randomness(bits_concat: str, seed_value: str, out_bits: int) -> str:
 
 def run_for_date(trade_date: date, window: int = config.EXTRACT_WINDOW, out_bits: int = config.EXTRACT_BITS) -> bool:
     # only proceed if the daily file exists and at least one symbol revealed
+    # print(f"running extractor for trade_date={trade_date} window={window} out_bits={out_bits}")
     path = os.path.join(config.DAILY_DIR, f"{trade_date.isoformat()}.json")
     if not os.path.exists(path):
         return False
@@ -91,11 +83,10 @@ def run_for_date(trade_date: date, window: int = config.EXTRACT_WINDOW, out_bits
 
     seed_url, seed_value = fetch_drand_seed()
     byte_stream = _collect_bytes(window)
-    if byte_stream:
-        output_hex = extract_randomness_from_bytes(byte_stream, seed_value, out_bits)
-    else:
-        bits_concat = _collect_bits(window)
-        output_hex = extract_randomness(bits_concat, seed_value, out_bits)
+    if byte_stream is None:
+        raise RuntimeError(f"Cannot extract randomness: symbol_bytes_hex not available in entropy log for window={window}")
+    
+    output_hex = extract_randomness_from_bytes(byte_stream, seed_value, out_bits)
 
     doc["extractor"] = {
         "seed_source": seed_url,

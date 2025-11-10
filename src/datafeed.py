@@ -9,16 +9,19 @@ import yfinance as yf
 import pytz
 
 def nyse_calendar():
+    # print("retrieving NYSE calendar instance")
     return pmc.get_calendar("XNYS")
 
 
 def is_trading_day(date_et: dt.date) -> bool:
+    # print(f"checking if {date_et} is a trading day")
     cal = nyse_calendar()
     schedule = cal.schedule(start_date=date_et, end_date=date_et)
     return not schedule.empty
 
 
 def previous_trading_day(date_et: dt.date) -> dt.date:
+    # print(f"finding previous trading day before {date_et}")
     cal = nyse_calendar()
     schedule = cal.valid_days(start_date=date_et - dt.timedelta(days=14), end_date=date_et - dt.timedelta(days=1))
     if len(schedule) == 0:
@@ -27,6 +30,7 @@ def previous_trading_day(date_et: dt.date) -> dt.date:
 
 
 def kth_previous_trading_day(date_et: dt.date, k: int) -> dt.date:
+    # print(f"computing {k}th previous trading day from {date_et}")
     if k <= 0:
         raise ValueError("k must be positive")
     d = date_et
@@ -37,6 +41,7 @@ def kth_previous_trading_day(date_et: dt.date, k: int) -> dt.date:
 
 def _download_daily(symbol: str, start: dt.date, end: dt.date) -> pd.DataFrame:
     # yfinance handles inclusive start, exclusive end for dates
+    # print(f"downloading daily data for {symbol} {start} -> {end}")
     df = yf.download(
         tickers=symbol,
         start=start.isoformat(),
@@ -51,6 +56,7 @@ def _download_daily(symbol: str, start: dt.date, end: dt.date) -> pd.DataFrame:
 
 
 def _series_to_date_close_map(df: pd.DataFrame) -> dict[str, float]:
+    # print(f"converting DataFrame with {0 if df is None else len(df)} rows to date->close map")
     if df is None or df.empty:
         return {}
     idx_dates = [pd.Timestamp(ts).date() for ts in df.index]
@@ -59,6 +65,7 @@ def _series_to_date_close_map(df: pd.DataFrame) -> dict[str, float]:
 
 
 def get_prev_and_today_close(symbol: str, trade_date: dt.date) -> Tuple[Optional[float], Optional[float]]:
+    # print(f"getting prev/today close for {symbol} on {trade_date}")
     start = trade_date - dt.timedelta(days=14)
     df = _download_daily(symbol, start, trade_date)
     m = _series_to_date_close_map(df)
@@ -69,6 +76,7 @@ def get_prev_and_today_close(symbol: str, trade_date: dt.date) -> Tuple[Optional
 
 
 def get_recent_closes(symbol: str, end_date: dt.date, lookback_trading_days: int = 6) -> list[Tuple[dt.date, float]]:
+    # print(f"gathering recent closes for {symbol} ending {end_date} over {lookback_trading_days} days")
     start = end_date - dt.timedelta(days=21)
     df = _download_daily(symbol, start, end_date)
     m = _series_to_date_close_map(df)
@@ -80,12 +88,13 @@ def get_recent_closes(symbol: str, end_date: dt.date, lookback_trading_days: int
     dates_sorted = sorted(dates)[-lookback_trading_days:]
     return [(d, m[d]) for d in dates_sorted if d in m]
 
-# minute data (for hybrid commit price)
+# minute data (for commit price)
 # #todo: add this to the config.py file?
 ET_TZ = pytz.timezone("America/New_York")
 UTC_TZ = pytz.UTC
 
 def _download_minute_day(symbol: str, trade_date: dt.date) -> pd.DataFrame:
+    # print(f"downloading minute-level data for {symbol} on {trade_date}")
     start_utc = ET_TZ.localize(dt.datetime.combine(trade_date, dt.time(9, 25))).astimezone(UTC_TZ)
     end_utc = ET_TZ.localize(dt.datetime.combine(trade_date, dt.time(16, 5))).astimezone(UTC_TZ)
     df = yf.download(
@@ -101,6 +110,7 @@ def _download_minute_day(symbol: str, trade_date: dt.date) -> pd.DataFrame:
     return df
 
 def _ensure_et_index(df: pd.DataFrame) -> pd.DataFrame:
+    # print("ensuring DataFrame index is ET localized")
     if df is None or df.empty:
         return df
     idx = pd.DatetimeIndex(df.index)
@@ -117,14 +127,16 @@ def get_minute_bar_near_et(symbol: str, trade_date: dt.date, target_et: dt.datet
     return (close_price, bar_ts_et_iso) for the 1m bar nearest to target_et within tolerance.
     target_et must be timezone-aware ET datetime.
     """
+    # print(f"looking for minute bar near {target_et} for {symbol}")
     if target_et.tzinfo is None:
         target_et = ET_TZ.localize(target_et)
     df = _download_minute_day(symbol, trade_date)
     if df is None or df.empty:
         return None, None
     df_et = _ensure_et_index(df)
-    diffs = (df_et.index - target_et).to_series().abs()
-    i_min = diffs.idxmin() if not diffs.empty else None
+    diffs = pd.Series(df_et.index - target_et, index=df_et.index)
+    diffs_abs = diffs.abs()
+    i_min = diffs_abs.idxmin() if not diffs_abs.empty else None
     if i_min is None:
         return None, None
     min_delta = abs((i_min - target_et).total_seconds())
@@ -140,6 +152,7 @@ def get_price_at_bar_et(symbol: str, trade_date: dt.date, bar_ts_et_iso: str, to
     """
     refetch 1m data for the day and return price nearest to the provided ET bar timestamp.
     """
+    # print(f"fetching price at bar {bar_ts_et_iso} for {symbol} on {trade_date}")
     try:
         ts = pd.Timestamp(bar_ts_et_iso)
         if ts.tz is None:

@@ -8,15 +8,18 @@ from . import commit_reveal, config, extractor
 
 
 def _parse_date(s: str) -> date:
+    # print(f"parsing CLI date value: {s}")
     return date.fromisoformat(s)
 
 
 def _today_et_date() -> date:
+    # print("calculating current date in ET")
     et = pytz.timezone("America/New_York")
     return datetime.now(et).date()
 
 
 def cmd_commit(args: argparse.Namespace) -> int:
+    # print(f"cmd_commit invoked with args: {args}")
     d = _parse_date(args.date) if args.date else _today_et_date()
     changed = commit_reveal.perform_commit(d, enforce_window=not args.force)
     print(f"commit: date={d} changed={changed}")
@@ -24,6 +27,7 @@ def cmd_commit(args: argparse.Namespace) -> int:
 
 
 def cmd_reveal(args: argparse.Namespace) -> int:
+    # print(f"cmd_reveal invoked with args: {args}")
     d = _parse_date(args.date) if args.date else _today_et_date()
     changed = commit_reveal.perform_reveal(d, enforce_window=not args.force)
     print(f"reveal: date={d} changed={changed}")
@@ -31,6 +35,7 @@ def cmd_reveal(args: argparse.Namespace) -> int:
 
 
 def cmd_extract(args: argparse.Namespace) -> int:
+    # print(f"cmd_extract invoked with args: {args}")
     d = _parse_date(args.date) if args.date else _today_et_date()
     window = args.window or config.EXTRACT_WINDOW
     bits = args.bits or config.EXTRACT_BITS
@@ -60,6 +65,7 @@ def main(argv=None) -> int:
     p_extract.set_defaults(func=cmd_extract)
 
     args = parser.parse_args(argv)
+    # print(f"parsed arguments: {args}")
     return args.func(args)
 
 
