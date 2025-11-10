@@ -39,21 +39,21 @@ jobs:
         if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
           echo "action=${{ github.event.inputs.action }}" >> $GITHUB_OUTPUT
         elif [ "${{ github.event_name }}" == "schedule" ]; then
-          # Check current UTC hour and minute to determine which action
-          HOUR=$(date -u +%H)
-          MINUTE=$(date -u +%M)
-          # Commit: 20:55 UTC (15:55 ET)
-          # Reveal: 21:05 UTC (16:05 ET)  
-          # Extract: 21:15 UTC (16:15 ET)
-          if [ "$HOUR" == "20" ] && [ "$MINUTE" -ge "54" ] && [ "$MINUTE" -le "56" ]; then
-            echo "action=commit" >> $GITHUB_OUTPUT
-          elif [ "$HOUR" == "21" ] && [ "$MINUTE" -ge "4" ] && [ "$MINUTE" -le "12" ]; then
-            echo "action=reveal" >> $GITHUB_OUTPUT
-          elif [ "$HOUR" == "21" ] && [ "$MINUTE" -ge "14" ] && [ "$MINUTE" -le "20" ]; then
-            echo "action=extract" >> $GITHUB_OUTPUT
-          else
-            echo "action=none" >> $GITHUB_OUTPUT
-          fi
+          SCHEDULE="${{ github.event.schedule }}"
+          case "$SCHEDULE" in
+            "55 20 * * 1-5")
+              echo "action=commit" >> $GITHUB_OUTPUT
+              ;;
+            "5 21 * * 1-5")
+              echo "action=reveal" >> $GITHUB_OUTPUT
+              ;;
+            "15 21 * * 1-5")
+              echo "action=extract" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "action=none" >> $GITHUB_OUTPUT
+              ;;
+          esac
         else
           echo "action=all" >> $GITHUB_OUTPUT
         fi
