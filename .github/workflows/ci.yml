@@ -109,7 +109,7 @@ jobs:
         retention-days: 3
     
     - name: Commit and push results
-      if: github.event_name == 'schedule' && success()
+      if: success()
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
@@ -178,7 +178,7 @@ jobs:
         retention-days: 3
     
     - name: Commit and push results
-      if: github.event_name == 'schedule' && success()
+      if: success()
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
@@ -246,7 +246,7 @@ jobs:
         retention-days: 3
     
     - name: Commit and push results
-      if: github.event_name == 'schedule' && success()
+      if: success()
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
