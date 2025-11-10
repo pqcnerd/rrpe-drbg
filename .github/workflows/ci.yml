@@ -117,7 +117,6 @@ jobs:
         BRANCH="${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD)}"
         [ -z "$BRANCH" ] && BRANCH="main"
         git fetch origin "$BRANCH"
-        git pull --rebase --autostash origin "$BRANCH"
         git add outputs/
         # Use ET timezone for date to match trade date
         TRADE_DATE=$(TZ=America/New_York date +%Y-%m-%d)
@@ -125,6 +124,7 @@ jobs:
           echo "No output changes to commit; skipping push."
         else
           git commit -m "Auto-commit: predictions for $TRADE_DATE"
+          git pull --rebase --autostash origin "$BRANCH"
           git pull --rebase origin "$BRANCH"
           git push origin HEAD:"$BRANCH"
         fi
@@ -196,7 +196,6 @@ jobs:
         BRANCH="${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD)}"
         [ -z "$BRANCH" ] && BRANCH="main"
         git fetch origin "$BRANCH"
-        git pull --rebase --autostash origin "$BRANCH"
         git add outputs/
         # Use ET timezone for date to match trade date
         TRADE_DATE=$(TZ=America/New_York date +%Y-%m-%d)
@@ -204,6 +203,7 @@ jobs:
           echo "No output changes to commit; skipping push."
         else
           git commit -m "Auto-reveal: outcomes for $TRADE_DATE"
+          git pull --rebase --autostash origin "$BRANCH"
           git pull --rebase origin "$BRANCH"
           git push origin HEAD:"$BRANCH"
         fi
@@ -274,13 +274,13 @@ jobs:
         BRANCH="${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD)}"
         [ -z "$BRANCH" ] && BRANCH="main"
         git fetch origin "$BRANCH"
-        git pull --rebase --autostash origin "$BRANCH"
         git add outputs/
         TRADE_DATE=$(TZ=America/New_York date +%Y-%m-%d)
         if git diff --staged --quiet; then
           echo "No output changes to commit; skipping push."
         else
           git commit -m "Auto-extract: randomness for $TRADE_DATE"
+          git pull --rebase --autostash origin "$BRANCH"
           git pull --rebase origin "$BRANCH"
           git push origin HEAD:"$BRANCH"
         fi
