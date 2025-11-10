@@ -73,6 +73,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
     
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -113,11 +114,18 @@ jobs:
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
+        BRANCH="${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD)}"
+        [ -z "$BRANCH" ] && BRANCH="main"
         git add outputs/
         # Use ET timezone for date to match trade date
         TRADE_DATE=$(TZ=America/New_York date +%Y-%m-%d)
-        git diff --staged --quiet || git commit -m "Auto-commit: predictions for $TRADE_DATE"
-        git push
+        if git diff --staged --quiet; then
+          echo "No output changes to commit; skipping push."
+        else
+          git commit -m "Auto-commit: predictions for $TRADE_DATE"
+          git pull --rebase origin "$BRANCH"
+          git push origin HEAD:"$BRANCH"
+        fi
 
   reveal:
     runs-on: ubuntu-latest
@@ -134,6 +142,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
     
     - name: Download outputs artifact
       if: needs.commit.result == 'success'
@@ -182,11 +191,18 @@ jobs:
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
+        BRANCH="${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD)}"
+        [ -z "$BRANCH" ] && BRANCH="main"
         git add outputs/
         # Use ET timezone for date to match trade date
         TRADE_DATE=$(TZ=America/New_York date +%Y-%m-%d)
-        git diff --staged --quiet || git commit -m "Auto-reveal: outcomes for $TRADE_DATE"
-        git push
+        if git diff --staged --quiet; then
+          echo "No output changes to commit; skipping push."
+        else
+          git commit -m "Auto-reveal: outcomes for $TRADE_DATE"
+          git pull --rebase origin "$BRANCH"
+          git push origin HEAD:"$BRANCH"
+        fi
 
   extract:
     runs-on: ubuntu-latest
@@ -202,6 +218,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
     
     - name: Download outputs artifact
       if: needs.reveal.result == 'success'
@@ -250,7 +267,14 @@ jobs:
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
+        BRANCH="${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD)}"
+        [ -z "$BRANCH" ] && BRANCH="main"
         git add outputs/
         TRADE_DATE=$(TZ=America/New_York date +%Y-%m-%d)
-        git diff --staged --quiet || git commit -m "Auto-extract: randomness for $TRADE_DATE"
-        git push
+        if git diff --staged --quiet; then
+          echo "No output changes to commit; skipping push."
+        else
+          git commit -m "Auto-extract: randomness for $TRADE_DATE"
+          git pull --rebase origin "$BRANCH"
+          git push origin HEAD:"$BRANCH"
+        fi
