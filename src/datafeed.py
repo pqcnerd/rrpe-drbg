@@ -8,6 +8,35 @@ import pandas_market_calendars as pmc
 import yfinance as yf
 import pytz
 
+_STANDARD_FIELD_ORDER = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
+_PRICE_FIELD_NAMES = {name.lower() for name in _STANDARD_FIELD_ORDER}
+_PRICE_FIELD_MAP = {name.lower(): name for name in _STANDARD_FIELD_ORDER}
+
+
+def _normalize_price_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Flatten multi-index columns returned by yfinance to standard OHLC names."""
+    if df is None or df.empty:
+        return df
+
+    out = df.copy()
+    if isinstance(out.columns, pd.MultiIndex):
+        # use the final level, which where yfinance stores field names
+        field_level = out.columns.nlevels - 1
+        out.columns = out.columns.get_level_values(field_level)
+
+    normalized = []
+    for col in out.columns:
+        name = str(col).strip()
+        mapped = _PRICE_FIELD_MAP.get(name.lower())
+        normalized.append(mapped or name)
+    out.columns = normalized
+
+    if "Close" not in out.columns and len(out.columns) > 0:
+        # fall back to expected field order if yfinance returned duplicate ticker columns
+        count = min(len(out.columns), len(_STANDARD_FIELD_ORDER))
+        out.columns = _STANDARD_FIELD_ORDER[:count] + list(out.columns[count:])
+    return out
+
 def nyse_calendar():
     # print("retrieving NYSE calendar instance")
     return pmc.get_calendar("XNYS")
@@ -50,14 +79,14 @@ def _download_daily(symbol: str, start: dt.date, end: dt.date) -> pd.DataFrame:
         auto_adjust=False,
         progress=False,
     )
-    if isinstance(df.columns, pd.MultiIndex):
-        df = df.droplevel(0, axis=1)
-    return df
+    return _normalize_price_columns(df)
 
 
 def _series_to_date_close_map(df: pd.DataFrame) -> dict[str, float]:
     # print(f"converting DataFrame with {0 if df is None else len(df)} rows to date->close map")
     if df is None or df.empty:
+        return {}
+    if "Close" not in df.columns:
         return {}
     idx_dates = [pd.Timestamp(ts).date() for ts in df.index]
     closes = df["Close"].tolist()
@@ -89,7 +118,6 @@ def get_recent_closes(symbol: str, end_date: dt.date, lookback_trading_days: int
     return [(d, m[d]) for d in dates_sorted if d in m]
 
 # minute data (for commit price)
-# #todo: add this to the config.py file?
 ET_TZ = pytz.timezone("America/New_York")
 UTC_TZ = pytz.UTC
 
@@ -105,9 +133,7 @@ def _download_minute_day(symbol: str, trade_date: dt.date) -> pd.DataFrame:
         auto_adjust=False,
         progress=False,
     )
-    if isinstance(df.columns, pd.MultiIndex):
-        df = df.droplevel(0, axis=1)
-    return df
+    return _normalize_price_columns(df)
 
 def _ensure_et_index(df: pd.DataFrame) -> pd.DataFrame:
     # print("ensuring DataFrame index is ET localized")
@@ -133,6 +159,8 @@ def get_minute_bar_near_et(symbol: str, trade_date: dt.date, target_et: dt.datet
     df = _download_minute_day(symbol, trade_date)
     if df is None or df.empty:
         return None, None
+    if "Close" not in df.columns:
+        return None, None
     df_et = _ensure_et_index(df)
     diffs = pd.Series(df_et.index - target_et, index=df_et.index)
     diffs_abs = diffs.abs()
@@ -142,11 +170,11 @@ def get_minute_bar_near_et(symbol: str, trade_date: dt.date, target_et: dt.datet
     min_delta = abs((i_min - target_et).total_seconds())
     if min_delta > tolerance_minutes * 60:
         return None, None
-    try:
-        close_val = float(df_et.loc[i_min]["Close"])
-    except Exception:
+    row = df_et.loc[i_min]
+    close_val = row["Close"] if isinstance(row, pd.Series) and "Close" in row else None
+    if close_val is None or pd.isna(close_val):
         return None, None
-    return close_val, i_min.isoformat()
+    return float(close_val), i_min.isoformat()
 
 def get_price_at_bar_et(symbol: str, trade_date: dt.date, bar_ts_et_iso: str, tolerance_minutes: int = 2) -> Tuple[Optional[float], Optional[str]]:
     """

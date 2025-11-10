@@ -43,6 +43,8 @@ EXTRACT_BITS = 256
 PROVIDER = "yfinance"
 GITHUB_SHA_ENV = "GITHUB_SHA"
 
+COMMIT_BAR_TOLERANCE_MINUTES = 15
+
 def ensure_output_dirs() -> None:
     # print(f"ensuring output directories exist: {OUTPUTS_DIR}, {DAILY_DIR}")
     os.makedirs(DAILY_DIR, exist_ok=True)

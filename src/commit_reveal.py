@@ -184,7 +184,7 @@ def perform_commit(trade_date: date, enforce_window: bool = True) -> bool:
         et = pytz.timezone("America/New_York")
         target = et.localize(datetime.combine(trade_date, time(15, 55)))
         print(f"fetching minute bar data for {sym} on {trade_date} near {target}")
-        p_commit, bar_ts_iso = datafeed.get_minute_bar_near_et(sym, trade_date, target, tolerance_minutes=2)
+        p_commit, bar_ts_iso = datafeed.get_minute_bar_near_et(sym, trade_date, target, tolerance_minutes=config.COMMIT_BAR_TOLERANCE_MINUTES)
         if p_commit is None or bar_ts_iso is None:
             print(f"could not fetch minute bar data for {sym} on {trade_date} (p_commit={p_commit}, bar_ts_iso={bar_ts_iso})")
             continue
@@ -260,7 +260,7 @@ def perform_reveal(trade_date: date, enforce_window: bool = True) -> bool:
         if not bar_ts_iso:
             et = pytz.timezone("America/New_York")
             bar_ts_iso = et.localize(datetime.combine(trade_date, time(15, 55))).isoformat()
-        p_commit, bar_ts_ack = datafeed.get_price_at_bar_et(sym, trade_date, bar_ts_iso, tolerance_minutes=2)
+        p_commit, bar_ts_ack = datafeed.get_price_at_bar_et(sym, trade_date, bar_ts_iso, tolerance_minutes=config.COMMIT_BAR_TOLERANCE_MINUTES)
         if p_commit is None:
             continue
         payload = {
