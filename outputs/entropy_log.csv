@@ -1,1 +1,2 @@
 date,symbol,prediction,outcome,symbol_bits,commit,context,salt,close_prev,close_today,provider,tie,p_commit,p_reveal,commit_bar_ts_et,delta,sign_bit,mag_q,symbol_bytes_hex
+2025-11-03,AAPL,1,0,10,bc4b599c655748a9af9475fd9c548dd5e76fd7e5b9aa6dfae6fa662fc3f2e036,2025-11-03|AAPL|NASDAQ|close,b73dd7d54119acfce0e78b561275da9d,269.1600036621094,266.25,yfinance,False,267.65,266.25,2025-11-03T15:55:00-05:00,-1.3999999999999773,0,139,0100008b
