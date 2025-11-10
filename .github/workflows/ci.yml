@@ -97,6 +97,15 @@ jobs:
         else
           python -m src.main commit --force
         fi
+
+    - name: Upload outputs artifact (post-commit)
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: rrpe-outputs
+        path: outputs/
+        if-no-files-found: ignore
+        retention-days: 3
     
     - name: Commit and push results
       if: github.event_name == 'schedule' && success()
@@ -125,6 +134,14 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
     
+    - name: Download outputs artifact
+      if: needs.commit.result == 'success'
+      uses: actions/download-artifact@v4
+      with:
+        name: rrpe-outputs
+        path: outputs/
+      continue-on-error: true
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -148,6 +165,15 @@ jobs:
         else
           python -m src.main reveal --force
         fi
+
+    - name: Upload outputs artifact (post-reveal)
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: rrpe-outputs
+        path: outputs/
+        if-no-files-found: ignore
+        retention-days: 3
     
     - name: Commit and push results
       if: github.event_name == 'schedule' && success()
@@ -175,6 +201,14 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
     
+    - name: Download outputs artifact
+      if: needs.reveal.result == 'success'
+      uses: actions/download-artifact@v4
+      with:
+        name: rrpe-outputs
+        path: outputs/
+      continue-on-error: true
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -198,6 +232,15 @@ jobs:
         else
           python -m src.main extract --window 256 --bits 256
         fi
+
+    - name: Upload outputs artifact (post-extract)
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: rrpe-outputs
+        path: outputs/
+        if-no-files-found: ignore
+        retention-days: 3
     
     - name: Commit and push results
       if: github.event_name == 'schedule' && success()
