@@ -1,4 +1,4 @@
-# rrpe-drbg (removed all references to my legacy implementation and only kept the "hybrid" mode as my current)
+# rrpe-drbg
 a cryptographic random number gen reseeded by own predictive error on chaotic rw processes
 
 experimental cryptographic randomness beacon that continuously *re-entropizes itself* using the outcome of its own failed predictions.  
