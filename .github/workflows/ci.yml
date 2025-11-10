@@ -116,6 +116,8 @@ jobs:
         git config --local user.name "GitHub Action"
         BRANCH="${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD)}"
         [ -z "$BRANCH" ] && BRANCH="main"
+        git fetch origin "$BRANCH"
+        git pull --rebase --autostash origin "$BRANCH"
         git add outputs/
         # Use ET timezone for date to match trade date
         TRADE_DATE=$(TZ=America/New_York date +%Y-%m-%d)
@@ -193,6 +195,8 @@ jobs:
         git config --local user.name "GitHub Action"
         BRANCH="${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD)}"
         [ -z "$BRANCH" ] && BRANCH="main"
+        git fetch origin "$BRANCH"
+        git pull --rebase --autostash origin "$BRANCH"
         git add outputs/
         # Use ET timezone for date to match trade date
         TRADE_DATE=$(TZ=America/New_York date +%Y-%m-%d)
@@ -269,6 +273,8 @@ jobs:
         git config --local user.name "GitHub Action"
         BRANCH="${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD)}"
         [ -z "$BRANCH" ] && BRANCH="main"
+        git fetch origin "$BRANCH"
+        git pull --rebase --autostash origin "$BRANCH"
         git add outputs/
         TRADE_DATE=$(TZ=America/New_York date +%Y-%m-%d)
         if git diff --staged --quiet; then
