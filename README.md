@@ -79,7 +79,7 @@ this creates a *cybernetic feedback loop*:
 
 mathematically, if the prediction stream has min-entropy `H∞(X) > 0`, a hash-based extractor guarantees nearly uniform output bits (Leftover Hash Lemma):
 
-`‖R_t − U_m‖ ≤ 2^{−(H∞(X) − m)/2}`
+`||R_t − U_m|| <= 2^{−(Hinf(X) − m)/2}`
 
 thus, as long as the world resists perfect prediction, entropy is continuously renewed.
 
@@ -129,9 +129,9 @@ changed = run_for_date(trade_date, window=256, out_bits=256)
 
 symbol frequency distribution
 
-shannon entropy H(X) = −Σ p_i log₂ p_i
+shannon entropy H(X) = −sum(p_i log_2 p_i)
 
-min-entropy H∞(X) = −log₂(max p_i)
+min-entropy Hinf(X) = −log₂(max p_i)
 
 autocorrelation of symbol sequences
 
@@ -159,7 +159,7 @@ after reveal we derive:
 
 ### commit phase (15:55 ET)
 
-1. fetch 1 minute bar nearest to 15:55 ET (within ±2 minutes)
+1. fetch 1 minute bar nearest to 15:55 ET (within 15 minutes)
 2. record `p_commit = round(bar.Close, 4)` and `commit_bar_ts_et` (ISO timestamp in ET)
 3. build canonical JSON payload:
 ```json

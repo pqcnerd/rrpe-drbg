@@ -8,10 +8,15 @@ the examples below assume you are inside the virtual environment:
 
 ```bash
 ./misc/install.sh
-source misc/venv/bin/activate
+source venv/bin/activate # or whever it makes it
 ```
 
 for future sessions, just rerun the `source` line to reenter the environment.
+
+## setting up your env
+```bash
+export RRPE_SALT_KEY= #anything here
+```
 
 ## commit the prediction
 

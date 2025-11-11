@@ -57,17 +57,6 @@ def previous_trading_day(date_et: dt.date) -> dt.date:
         raise ValueError("no prior trading day found in the past 2 weeks!?!")
     return schedule[-1].date()
 
-
-def kth_previous_trading_day(date_et: dt.date, k: int) -> dt.date:
-    # print(f"computing {k}th previous trading day from {date_et}")
-    if k <= 0:
-        raise ValueError("k must be positive")
-    d = date_et
-    for _ in range(k):
-        d = previous_trading_day(d)
-    return d
-
-
 def _download_daily(symbol: str, start: dt.date, end: dt.date) -> pd.DataFrame:
     # yfinance handles inclusive start, exclusive end for dates
     # print(f"downloading daily data for {symbol} {start} -> {end}")
