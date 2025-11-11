@@ -68,10 +68,10 @@
   },
   "extractor": {
     "seed_source": "https://drand.cloudflare.com/public/latest",
-    "seed_value": "6f6d7fa9021119ef4ffe1300611a44512228be4899999234018de46014a70ad5",
+    "seed_value": "4b407026ec123bf1c82d5b501429003d590e525d3f5e5e477fef241c6d1938a2",
     "window": 256,
     "output_bits": 256,
-    "output_hex": "a775a1e0d2c7976bf8cd354b1ede9cde8b51f547aad52a6d170e3aca4e5b3fb3",
-    "generated_at_utc": "2025-11-11T00:48:37.081270+00:00"
+    "output_hex": "d2aa0078a7ac2dbc1d24379e4f891cfad26458fa930459362c28ebc3f0727dd9",
+    "generated_at_utc": "2025-11-11T01:09:25.958910+00:00"
   }
 }
