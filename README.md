@@ -1,6 +1,15 @@
 # rrpe-drbg
 a cryptographic random number gen reseeded by own predictive error on chaotic rw processes
 
+## verdict (read this first)
+this is an **experimental, auditable randomness-beacon-style mixer**, not a production-grade cryptographic DRBG
+
+- **do not use for keys / secrets**: this project does *not* claim CSPRNG/DRBG security (NIST-style) and is not suitable for generating private keys, nonces, seeds, or long-term secrets
+- **output strength is often “as strong as drand”**: the extractor computes `SHA256(drand_seed || symbol_bytes_stream)`. if `drand` is honest/available, the output is already high-quality public randomness; the market-derived bytes mostly act as additional mixing/commitment-to-reality
+- **offline mode is deterministic**: if `drand` fetch fails, the code falls back to a fixed all-zero seed; in that mode the output becomes a deterministic hash of the logged market-derived symbols
+- **threat model matters**: the market inputs are public, structured, and can be biased/manipulated (data source quirks, revisions, outages, potential price steering, selective participation). this repo is best viewed as a transparent experiment in “reflexive randomness,” not a security primitive
+*note: the rest is the old readme without seeing the docs generated.*
+
 experimental cryptographic randomness beacon that continuously *re-entropizes itself* using the outcome of its own failed predictions.  
 everyday (or moreso every close?), the system makes a publicly verifiable prediction about an inherently unpredictable real-world signal (ex. whether a stock index will rise or fall at the next close) and commits that prediction before the outcome is known.  
 once reality is observed, a **4-byte symbol** is formed from the prediction, outcome, and price movement: `[prediction, outcome, sign_bit, mag_q]`, which is appended to an ever growing sequence of **prediction error pairs**.  
