@@ -3,6 +3,7 @@ pandas-market-calendars>=4.3.0
 yfinance>=0.2.0
 pytz>=2023.3
 requests>=2.31.0
+matplotlib>=3.8.0
 pytest>=7.4.0
 pytest-cov>=4.1.0
 pytest-mock>=3.11.0

@@ -10,3 +10,8 @@ clean:
 		echo "date,symbol,prediction,outcome,symbol_bits,commit,context,salt,close_prev,close_today,provider,tie,p_commit,p_reveal,commit_bar_ts_et,delta,sign_bit,mag_q,symbol_bytes_hex" > outputs/entropy_log.csv; \
 	fi
 	@echo "removing outputs/daily & resetting entropy_log.csv"
+
+.PHONY: docs
+docs:
+	@python scripts/generate_docs.py
+	@echo "wrote docs/assets/*.png and docs/entropy_summary.json"
