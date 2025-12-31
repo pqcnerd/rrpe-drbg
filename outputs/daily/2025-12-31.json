@@ -65,5 +65,13 @@
   "meta": {
     "generated_at_utc": "2025-12-31T20:57:47.236885+00:00",
     "code_commit": "aa1f458db0a1c7ef5452d9d9243064d1f3c40c4b"
+  },
+  "extractor": {
+    "seed_source": "https://drand.cloudflare.com/public/latest",
+    "seed_value": "9bde51729d3bc178fdff23be6418d955077e5a3af726a913c80bbaa6a49f9302",
+    "window": 256,
+    "output_bits": 256,
+    "output_hex": "69725f0472b1461bdb805e4e6d6ec50fb3b0d75c1988c4c5cc3206b4cd218e26",
+    "generated_at_utc": "2025-12-31T21:31:35.480757+00:00"
   }
 }
