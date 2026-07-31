@@ -29,7 +29,7 @@
       "sign_bit": 0,
       "mag_q": 255,
       "symbol_bytes_hex": "010100ff",
-      "revealed_at_utc": "2026-07-31T22:13:53.705782+00:00"
+      "revealed_at_utc": "2026-07-31T22:14:46.880573+00:00"
     },
     {
       "symbol": "AAPL",
@@ -59,7 +59,7 @@
       "sign_bit": 0,
       "mag_q": 255,
       "symbol_bytes_hex": "000000ff",
-      "revealed_at_utc": "2026-07-31T22:13:54.665055+00:00"
+      "revealed_at_utc": "2026-07-31T22:14:47.688767+00:00"
     }
   ],
   "meta": {
