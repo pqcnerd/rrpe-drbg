@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-27",
+  "symbols": [
+    {
+      "symbol": "SPY",
+      "commit": "59b1f89203b9b9a952f7eabf3e43278555a15c3999c42ee6fd193b7cf12bf043",
+      "commit_bar_ts_et": "2026-10-27T15:55:00-04:00",
+      "committed_at_utc": "2026-10-28T00:05:01.109353+00:00",
+      "commit_inputs": {
+        "symbol": "SPY",
+        "prediction": 1,
+        "p_commit": 769.97,
+        "commit_bar_ts_et": "2026-10-27T15:55:00-04:00",
+        "timestamp_commit_utc": "2026-10-28T00:05:01.109353+00:00",
+        "context": "2026-10-27|SPY|NYSE|close"
+      }
+    },
+    {
+      "symbol": "AAPL",
+      "commit": "ee7503bd9efecb92348aa43022e26d9568058222c85b23e559b2a18c596b46f3",
+      "commit_bar_ts_et": "2026-10-27T15:55:00-04:00",
+      "committed_at_utc": "2026-10-28T00:05:01.816577+00:00",
+      "commit_inputs": {
+        "symbol": "AAPL",
+        "prediction": 0,
+        "p_commit": 346.48,
+        "commit_bar_ts_et": "2026-10-27T15:55:00-04:00",
+        "timestamp_commit_utc": "2026-10-28T00:05:01.816577+00:00",
+        "context": "2026-10-27|AAPL|NASDAQ|close"
+      }
+    }
+  ],
+  "meta": {
+    "generated_at_utc": "2026-10-28T00:05:00.123071+00:00",
+    "code_commit": "4aceb12436e00e6d3025979f33f1d57c1c8a48b6"
+  }
+}
